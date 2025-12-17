@@ -176,6 +176,7 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
     const m = location.pathname.match(/\/(\d+)(?:-|$)/)
     if (m) urlUid = m[1]
   }
+  if (urlUid) console.debug('Detected urlUid:', urlUid)
   // if UID present in URL, try to open only that product
   if (urlUid) {
     // try exact match by Tilda UID column
@@ -184,6 +185,7 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
       return it.uidRaw.replace(/^"|"$/g, '') === urlUid
     })
     let match = matchByUid || null
+    console.debug('Match by UID result:', !!match, match ? match.skuRaw || match.id : null)
     // if not found, try matching by title slug (transliteration)
     if (!match) {
       // extract slug part after the first dash in last path segment
@@ -201,6 +203,7 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
         }
         const target = slugify(slugPart)
         match = items.find(it => slugify(it.title) === target)
+        console.debug('Title slug fallback target:', target, 'found:', !!match)
       }
     }
     if (!match) {
