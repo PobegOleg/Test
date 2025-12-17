@@ -36,6 +36,18 @@ function getUidFromUrl() {
   return urlUid
 }
 
+// Function to transliterate Latin to Cyrillic and vice versa
+function transliterate(str, toCyrillic = true) {
+  const cyrToLat = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'shch', ы: 'y', э: 'e', ю: 'yu', я: 'ya', ' ': '-'
+  }
+  const latToCyr = Object.fromEntries(Object.entries(cyrToLat).map(([k, v]) => [v, k]))
+  
+  const dict = toCyrillic ? latToCyr : cyrToLat
+
+  return str.split('').map(ch => dict[ch.toLowerCase()] || ch).join('')
+}
+
 // Load CSV and find matching painting by UID
 fetch('paintings.csv')
   .then(r => r.text())
@@ -75,12 +87,14 @@ fetch('paintings.csv')
     })
 
     const uidFromUrl = getUidFromUrl()
-    if (!uidFromUrl) {
-      paintingDescription.innerHTML = '<div style="padding:8px;color:#666">UID не найден в URL</div>'
-      return
+    const urlTitle = transliterate(location.pathname.split('/').pop().replace(/-/g, ' '), true)
+    
+    // Find either by UID or transliterated title
+    let matched = rows.find(row => row.uid === uidFromUrl)
+    if (!matched && urlTitle) {
+      matched = rows.find(row => row.title.toLowerCase().includes(urlTitle.toLowerCase()))
     }
 
-    const matched = rows.find(row => row.uid === uidFromUrl)
     if (!matched) {
       paintingDescription.innerHTML = '<div style="padding:8px;color:#666">Картина не найдена в файле CSV</div>'
       return
