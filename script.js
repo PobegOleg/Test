@@ -20,6 +20,8 @@ if (interiorImg) interiorImg.src = 'images/interior/interior.png'
 // helper: sanitize CSV cell
 function cell(v){ return v ? v.replace(/^\s+|\s+$/g, '').replace(/^"|"$/g, '') : '' }
 
+// No client-side JSON listing; rely solely on CSV and filename candidate generation
+
 // global resource error logger for images (helps detect external URLs coming from CSV)
 window.addEventListener('error', function(e){
   const t = e.target || e.srcElement
@@ -58,6 +60,7 @@ function makeItem(p){
 
 // проверяет список возможных URL миниатюры и возвращает первый успешный
 function findExistingThumb(id, cb){
+  // We rely on CSV-derived id and try multiple filename variants (pads and suffixes).
   const folders = ['images/paintings','images/Paintings']
   const exts = ['jpg','jpeg','png','webp']
   const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
@@ -219,22 +222,11 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
     })
     return
   }
-
-  // default behaviour: populate list with all CSV rows that have images
-  items.forEach(p => {
-    findExistingThumb(p.id, (thumbUrl) => {
-      processed++
-      if (thumbUrl) {
-        p.thumb = thumbUrl
-        paintingList.appendChild(makeItem(p))
-        appended.push(p)
-      }
-      if (processed === items.length) {
-        if (appended.length) selectPainting(appended[0])
-        else paintingList.innerHTML = '<div style="padding:8px;color:#666">Нет доступных изображений</div>'
-      }
-    })
-  })
+  // No UID provided — this constructor is intended to open only a painting from an external card.
+  // Hide/remove the selector UI and show a friendly message.
+  const pickerEl = document.querySelector('.painting-picker')
+  if (pickerEl) pickerEl.remove()
+  paintingList.innerHTML = '<div style="padding:8px;color:#666">Нет UID в ссылке — картина не выбрана</div>'
 }).catch(err => {
   console.warn('Не удалось загрузить paintings.csv', err)
   paintingList.innerHTML = '<div style="padding:8px;color:#666">Ошибка загрузки CSV</div>'
