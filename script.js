@@ -170,7 +170,38 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
     const hp = new URLSearchParams(h)
     urlUid = hp.get('uid') || hp.get('id') || urlUid
   }
+  // also support UID embedded in pathname (e.g. /tproduct/782957961992-novie-freski-altamira)
+  if (!urlUid && location.pathname) {
+    const m = location.pathname.match(/\/(\d+)(?:-|$)/)
+    if (m) urlUid = m[1]
+  }
+  // if UID present in URL, try to open only that product
+  if (urlUid) {
+    const match = items.find(it => {
+      if (!it.uidRaw) return false
+      return it.uidRaw.replace(/^"|"$/g, '') === urlUid
+    })
+    if (!match) {
+      paintingList.innerHTML = '<div style="padding:8px;color:#666">Товар не найден в CSV по UID</div>'
+      return
+    }
+    // hide the picker UI — we show only the matched painting
+    const pickerEl = document.querySelector('.painting-picker')
+    if (pickerEl) pickerEl.style.display = 'none'
+    // find thumbnail/main image for the matched item
+    findExistingThumb(match.id, (thumbUrl) => {
+      if (thumbUrl) {
+        match.thumb = thumbUrl
+        // show title/description and open the painting
+        selectPainting(match)
+      } else {
+        paintingDescription.innerHTML = '<div style="color:#a33">Изображение для товара не найдено</div>'
+      }
+    })
+    return
+  }
 
+  // default behaviour: populate list with all CSV rows that have images
   items.forEach(p => {
     findExistingThumb(p.id, (thumbUrl) => {
       processed++
@@ -180,19 +211,8 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
         appended.push(p)
       }
       if (processed === items.length) {
-        if (appended.length) {
-          // if URL provided uid, try to find corresponding CSV row by uidRaw
-          if (urlUid) {
-            const found = appended.find(a => {
-              if (!a.uidRaw) return false
-              return a.uidRaw.replace(/^"|"$/g, '') === urlUid
-            })
-            if (found) selectPainting(found)
-            else selectPainting(appended[0])
-          } else {
-            selectPainting(appended[0])
-          }
-        } else paintingList.innerHTML = '<div style="padding:8px;color:#666">Нет доступных изображений</div>'
+        if (appended.length) selectPainting(appended[0])
+        else paintingList.innerHTML = '<div style="padding:8px;color:#666">Нет доступных изображений</div>'
       }
     })
   })
