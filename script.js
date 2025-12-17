@@ -20,6 +20,14 @@ if (interiorImg) interiorImg.src = 'images/interior/interior.png'
 // helper: sanitize CSV cell
 function cell(v){ return v ? v.replace(/^\s+|\s+$/g, '').replace(/^"|"$/g, '') : '' }
 
+// global resource error logger for images (helps detect external URLs coming from CSV)
+window.addEventListener('error', function(e){
+  const t = e.target || e.srcElement
+  if (t && t.tagName === 'IMG') {
+    console.warn('Image load error captured:', t.src)
+  }
+}, true)
+
 // try to find best-matching header index
 function findHeaderIndex(headers, patterns){
   const lower = headers.map(h=>h.toLowerCase())
@@ -50,75 +58,119 @@ function makeItem(p){
 
 // проверяет список возможных URL миниатюры и возвращает первый успешный
 function findExistingThumb(id, cb){
-  const candidates = [
-    `images/paintings/painting_${id}_thumb.jpg`,
-    `images/paintings/painting_${id}.jpg`,
-    `images/paintings/${id}_thumb.jpg`,
-    `images/paintings/${id}.jpg`
-  ]
+  const folders = ['images/paintings','images/Paintings']
+  const exts = ['jpg','jpeg','png','webp']
+  const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
+  const candidates = []
+  const suffixes = ['','_thumb','-thumb','_main','_large','_re1','_old','_new']
+  folders.forEach(f => {
+    pads.forEach(p => {
+      suffixes.forEach(suf => {
+        exts.forEach(ext => {
+          candidates.push(`${f}/${p}${suf}.${ext}`)
+        })
+      })
+    })
+  })
+  let idx = 0
+  const max = candidates.length
   function tryNext(){
-    const url = candidates.shift()
-    if (!url) return cb(null)
+    if (idx >= max) return cb(null)
+    const url = candidates[idx++]
     const img = new Image()
     img.onload = () => cb(url)
-    img.onerror = () => tryNext()
+    img.onerror = () => {
+      console.debug('Thumbnail not found:', url)
+      tryNext()
+    }
+    console.debug('Trying thumbnail URL:', url)
     img.src = url
   }
   tryNext()
 }
 
 function selectPainting(p){
-  // try multiple image file name patterns for main image
-  const mainCandidates = [
-    `images/paintings/painting_${p.id}.jpg`,
-    `images/paintings/${p.id}.jpg`,
-    `images/paintings/painting_${p.id}_large.jpg`,
-  ]
-  let tried = 0
-  function tryNext(){
-    const src = mainCandidates.shift()
-    if (!src) {
-      // fallback to empty
-      artImage.src = ''
-      return
+  // build main image candidates similar to thumbnail search (no prefix required)
+  const folders = ['images/paintings','images/Paintings']
+  const exts = ['jpg','jpeg','png','webp']
+  const pads = [p.id, p.id.padStart(2,'0'), p.id.padStart(3,'0')]
+  const mainCandidates = []
+  folders.forEach(f => {
+    pads.forEach(pa => {
+      exts.forEach(ext => {
+        mainCandidates.push(`${f}/${pa}.${ext}`)
+        mainCandidates.push(`${f}/${pa}_large.${ext}`)
+        mainCandidates.push(`${f}/${pa}_main.${ext}`)
+      })
+    })
+  })
+  let mIdx = 0
+  const maxMain = mainCandidates.length
+  function tryNextMain(){
+    if (mIdx >= maxMain) { artImage.src = ''; return }
+    const src = mainCandidates[mIdx++]
+    artImage.onerror = () => {
+      console.debug('Main image not found:', src)
+      tryNextMain()
     }
-    artImage.onerror = tryNext
+    console.debug('Trying main image URL:', src)
     artImage.src = src
   }
-  tryNext()
-  selectedThumb.src = `images/paintings/painting_${p.id}_thumb.jpg`
+  tryNextMain()
+  // selected thumbnail already discovered earlier and stored in p.thumb
+  if (p.thumb) selectedThumb.src = p.thumb
   selectedTitle.textContent = p.title || ''
   paintingDescription.textContent = p.description || ''
   paintingList.classList.add('hidden')
 }
 
-// fetch and parse CSV (works with comma or semicolon)
-fetch('paintings.csv').then(r=> r.text()).then(txt => {
+// load CSV and populate only CSV rows that have matching image files in images/Paintings
+fetch('paintings.csv').then(r => r.text()).then(txt => {
   if (!txt) return
   const delim = txt.indexOf(';') !== -1 && txt.indexOf(',') === -1 ? ';' : (txt.indexOf(',') !== -1 ? ',' : ',')
   const lines = txt.split(/\r?\n/).filter(Boolean)
-  const headers = lines[0].split(delim).map(h=> cell(h))
-  const idIdx = findHeaderIndex(headers, ['id','sku','code','external id','uid'])
+  if (lines.length <= 1) {
+    paintingList.innerHTML = '<div style="padding:8px;color:#666">CSV пуст или содержит только заголовки</div>'
+    return
+  }
+  const headers = lines[0].split(delim).map(h => cell(h))
+  const skuIdx = findHeaderIndex(headers, ['sku','code','article'])
+  const uidIdx = findHeaderIndex(headers, ['tilda uid','tilda_uid','external id','externalid','uid','tilda'])
   const titleIdx = findHeaderIndex(headers, ['title','name','label'])
   const descIdx = findHeaderIndex(headers, ['description','text','desc'])
+
   const rows = lines.slice(1)
-  const items = []
-  rows.forEach((ln, i)=>{
-    const cols = ln.split(delim).map(c=> cell(c))
-    let id = ''
-    if (idIdx !== -1) id = cols[idIdx]
-    else if (cols[0]) id = cols[0]
-    // извлекаем все цифры из SKU/id и соединяем их (буквы игнорируются)
-    const digitMatches = (id || '').toString().match(/\d+/g)
-    const finalId = digitMatches ? digitMatches.join('') : (i+1).toString()
+  const items = rows.map((ln, i) => {
+    const cols = ln.split(delim).map(c => cell(c))
+    let raw = ''
+    if (skuIdx !== -1) raw = cols[skuIdx]
+    else if (cols[0]) raw = cols[0]
+    const digitMatches = (raw || '').toString().match(/\d+/g)
+    const rawId = digitMatches ? digitMatches.join('') : (i+1).toString()
+    const finalId = rawId.replace(/^0+/, '') || '0'
     const title = titleIdx !== -1 ? cols[titleIdx] : `Картина ${finalId}`
     const description = descIdx !== -1 ? cols[descIdx] : ''
-    items.push({ id: finalId, title, description })
+    const uidRaw = uidIdx !== -1 ? cols[uidIdx] : ''
+    return { id: finalId, title, description, uidRaw }
   })
-  // populate dropdown only with items that have an existing thumbnail
+
   const appended = []
   let processed = 0
   if (items.length === 0) return
+  // read uid from URL if present (query or hash)
+  const urlParams = new URLSearchParams(window.location.search)
+  const urlUidCandidates = [
+    urlParams.get('uid'), urlParams.get('product_uid'), urlParams.get('external_id'), urlParams.get('tilda_uid'), urlParams.get('id')
+  ].filter(Boolean)
+  let urlUid = null
+  if (urlUidCandidates.length) urlUid = urlUidCandidates[0]
+  // also support hash like #uid=...
+  if (!urlUid && location.hash) {
+    const h = location.hash.replace(/^#/, '')
+    const hp = new URLSearchParams(h)
+    urlUid = hp.get('uid') || hp.get('id') || urlUid
+  }
+
   items.forEach(p => {
     findExistingThumb(p.id, (thumbUrl) => {
       processed++
@@ -127,18 +179,26 @@ fetch('paintings.csv').then(r=> r.text()).then(txt => {
         paintingList.appendChild(makeItem(p))
         appended.push(p)
       }
-      // after all processed, select first appended if any
       if (processed === items.length) {
-        if (appended.length) selectPainting(appended[0])
-        else {
-          // nothing to show — optionally display message
-          paintingList.innerHTML = '<div style="padding:8px;color:#666">Нет доступных изображений</div>'
-        }
+        if (appended.length) {
+          // if URL provided uid, try to find corresponding CSV row by uidRaw
+          if (urlUid) {
+            const found = appended.find(a => {
+              if (!a.uidRaw) return false
+              return a.uidRaw.replace(/^"|"$/g, '') === urlUid
+            })
+            if (found) selectPainting(found)
+            else selectPainting(appended[0])
+          } else {
+            selectPainting(appended[0])
+          }
+        } else paintingList.innerHTML = '<div style="padding:8px;color:#666">Нет доступных изображений</div>'
       }
     })
   })
 }).catch(err => {
   console.warn('Не удалось загрузить paintings.csv', err)
+  paintingList.innerHTML = '<div style="padding:8px;color:#666">Ошибка загрузки CSV</div>'
 })
 
 // toggle dropdown
