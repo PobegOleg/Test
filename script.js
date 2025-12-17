@@ -176,6 +176,26 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
     const m = location.pathname.match(/\/(\d+)(?:-|$)/)
     if (m) urlUid = m[1]
   }
+  // if still no uid, try to extract it from document.referrer (useful when coming from Tilda)
+  if (!urlUid && document.referrer) {
+    try {
+      const ref = new URL(document.referrer)
+      const refParams = new URLSearchParams(ref.search)
+      urlUid = refParams.get('uid') || refParams.get('product_uid') || refParams.get('external_id') || refParams.get('tilda_uid') || refParams.get('id') || urlUid
+      if (!urlUid) {
+        const rm = ref.pathname.match(/\/(\d+)(?:-|$)/)
+        if (rm) urlUid = rm[1]
+      }
+      // fallback: any long digit sequence in referrer URL
+      if (!urlUid) {
+        const longDigits = (ref.href.match(/\d{6,}/g) || [])[0]
+        if (longDigits) urlUid = longDigits
+      }
+      if (urlUid) console.log('Detected urlUid from referrer:', urlUid, 'referrer:', document.referrer)
+    } catch (e) {
+      // ignore invalid referrer
+    }
+  }
   if (urlUid) console.log('Detected urlUid:', urlUid)
   // if UID present in URL, try to open only that product
   if (urlUid) {
