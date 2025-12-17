@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Конструктор картины</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <div class="controls">
+    <h3>Картина</h3>
+
+    <div class="painting-picker">
+      <button id="paintingToggle" class="dropdown-toggle">Выбрать картину <span id="selectedTitle"></span>
+        <img id="selectedThumb" src="" alt="" class="selected-thumb">
+      </button>
+      <div id="paintingList" class="dropdown-list hidden"></div>
+    </div>
+
+    <div id="paintingDescription" class="painting-description"></div>
+
+    <label>
+      Масштаб
+      <input type="range" id="scale" min="20" max="200" value="100">
+    </label>
+
+    <label>
+      Толщина рамки
+      <input type="range" id="frameWidth" min="0" max="40" value="20">
+    </label>
+
+    <label>
+      Цвет рамки
+      <input type="color" id="frameColor" value="#000000">
+    </label>
+  </div>
+
+  <div class="scene">
+    <img src="images/interior/interior.png" class="interior">
+
+    <div id="artFrame">
+      <img id="artImage" src="images/paintings/painting_1.jpg">
+    </div>
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

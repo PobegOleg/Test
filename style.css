@@ -1,0 +1,108 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+.controls {
+  width: 30%;
+  padding: 20px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.controls label {
+  display: block;
+  margin-top: 15px;
+}
+
+.painting-picker {
+  margin-top: 8px;
+}
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #f7f7f7;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+.selected-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  margin-left: 8px;
+  border: 1px solid #ddd;
+}
+.dropdown-list {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  max-height: 240px;
+  overflow: auto;
+  width: 260px;
+  z-index: 1000;
+  margin-top: 6px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+.dropdown-list.hidden { display: none }
+.dropdown-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px;
+  cursor: pointer;
+}
+.dropdown-item:hover { background: #f0f0f0 }
+.dropdown-item img { width: 56px; height: 56px; object-fit: cover; border: 1px solid #e6e6e6 }
+.painting-description {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #333;
+}
+
+.scene {
+  position: relative;
+  width: 70%;
+  background: #eee;
+  overflow: hidden;
+}
+
+.interior {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#artFrame {
+  position: absolute;
+  top: 40px;
+  right: 40px;
+  border-style: solid;
+  cursor: grab;
+}
+
+#artImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none; /* КЛЮЧ */
+}
+
+#artFrame:active {
+  cursor: grabbing;
+}
+
+#artFrame::after {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--stretcher, 20px));
+  border: var(--stretcher, 20px) solid #d8cdbb;
+  z-index: -1;
+}
