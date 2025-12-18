@@ -22,9 +22,7 @@ function isImage(url){
 /**********************
  * UID DETECTION (PID HAS PRIORITY)
  **********************/
-let urlUid;
-
-function findUid() {
+function findData() {
   const sources = [
     location.search,
     location.hash.replace('#', ''),
@@ -38,7 +36,13 @@ function findUid() {
     if (!source) continue;
     const params = new URLSearchParams(source);
     for (const key of paramKeys) {
-      if (params.has(key)) return params.get(key);
+      if (params.has(key)) {
+        return {
+          uid: params.get(key),
+          title: params.get('title'),
+          size: params.get('size')
+        };
+      }
     }
   }
 
@@ -46,18 +50,19 @@ function findUid() {
   const pathSources = [location.pathname, document.referrer ? new URL(document.referrer).pathname : ''];
   for (const source of pathSources) {
       const match = source.match(pathRegex);
-      if (match) return match[1];
+      if (match) return { uid: match[1], title: null, size: null };
   }
 
   if (document.referrer) {
     const longDigits = (document.referrer.match(/\d{6,}/g) || [])[0];
-    if (longDigits) return longDigits;
+    if (longDigits) return { uid: longDigits, title: null, size: null };
   }
 
-  return null;
+  return { uid: null, title: null, size: null };
 }
 
-urlUid = findUid();
+const data = findData();
+const urlUid = data.uid;
 
 console.log('FINAL PID/UID:', urlUid)
 
@@ -120,8 +125,12 @@ function loadPaintingImage(rawId){
  * INIT
  **********************/
 if (urlUid) {
-  selectedTitle.textContent = `SKU: ${urlUid}`
-  paintingDescription.textContent = ''
+  // Если есть title в URL, используем его, иначе SKU
+  selectedTitle.textContent = data.title ? data.title : `SKU: ${urlUid}`
+  
+  // Если есть size, выводим его в описание
+  paintingDescription.textContent = data.size ? `Размер: ${data.size}` : ''
+
   loadPaintingImage(urlUid)
 } else {
   paintingDescription.innerHTML = 'SKU не найден в ссылке'

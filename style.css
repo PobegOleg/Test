@@ -1,7 +1,3 @@
-* {
-  box-sizing: border-box;
-}
-
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -11,15 +7,14 @@ body {
 .app {
   display: flex;
   height: 100vh;
-  width: 100%;
+  width: 100vw;
 }
 
 .controls {
-  flex: 0 0 30%;
   width: 30%;
-  max-width: 30%;
   padding: 20px;
   background: #fff;
+  box-sizing: border-box;
   overflow-y: auto;
   border-right: 1px solid #ccc;
   z-index: 10;
@@ -35,6 +30,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+}
+
+#selectedTitle {
+  font-weight: bold;
+  font-size: 1.1em;
+  margin-bottom: 4px;
 }
 
 #paintingInfo .selected-thumb {
@@ -89,9 +90,7 @@ body {
 
 .scene {
   position: relative;
-  flex: 1;
-  width: auto;
-  min-width: 0;
+  width: 70%;
   background: #eee;
   overflow: hidden;
 }
