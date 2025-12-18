@@ -24,102 +24,41 @@ function isImage(url){
 }
 
 /**********************
- * THUMBNAIL SEARCH
- **********************/
-function findExistingThumb(id, cb){
-  // We rely on CSV-derived id and try multiple filename variants (pads and suffixes).
-  const folders = ['images/paintings','images/Paintings']
-  const exts = ['jpg','jpeg','png','webp']
-  const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
-  const candidates = []
-  const suffixes = ['','_thumb','-thumb','_main','_large','_re1','_old','_new']
-  folders.forEach(f => {
-    pads.forEach(p => {
-      suffixes.forEach(suf => {
-        exts.forEach(ext => {
-          candidates.push(`${f}/${p}${suf}.${ext}`)
-        })
-      })
-    })
-  })
-  let idx = 0
-  const max = candidates.length
-  function tryNext(){
-    if (idx >= max) return cb(null)
-    const url = candidates[idx++]
-    const img = new Image()
-    img.onload = () => cb(url)
-    img.onerror = () => {
-      console.debug('Thumbnail not found:', url)
-      tryNext()
-    }
-    console.debug('Trying thumbnail URL:', url)
-    img.src = url
-  }
-  tryNext()
-}
-        })
-      })
-    })
-  })
-  let idx = 0
-  const max = candidates.length
-  function tryNext(){
-    if (idx >= max) return cb(null)
-    const url = candidates[idx++]
-    const img = new Image()
-    img.onload = () => cb(url)
-    img.onerror = () => {
-      console.debug('Thumbnail not found:', url)
-      tryNext()
-    }
-    console.debug('Trying thumbnail URL:', url)
-    img.src = url
-  }
-  tryNext()
-}
-
-/**********************
  * UID DETECTION (PID HAS PRIORITY)
  **********************/
-const params = new URLSearchParams(location.search)
-let urlUid = params.get('pid') || params.get('uid')
+let urlUid;
 
-if (!urlUid && location.hash){
-  const hp = new URLSearchParams(location.hash.replace('#',''))
-  urlUid = hp.get('pid') || hp.get('uid')
-}
+function findUid() {
+  const sources = [
+    location.search,
+    location.hash.replace('#', ''),
+    document.referrer ? new URL(document.referrer).search : '',
+    document.referrer ? new URL(document.referrer).hash.replace('#', '') : ''
+  ];
 
-if (!urlUid && location.pathname){
-  const m = location.pathname.match(/\/(\d+)(?:-|$)/)
-  if (m) urlUid = m[1]
-}
+  const paramKeys = ['pid', 'uid', 'product_uid', 'external_id', 'tilda_uid', 'id'];
 
-// Also check for tilda uid in other parameters
-if (!urlUid) {
-  const urlParams = new URLSearchParams(window.location.search)
-  const urlUidCandidates = [
-    urlParams.get('pid'),  // Priority 1: pid
-    urlParams.get('uid'),  // Priority 2: uid
-    urlParams.get('product_uid'), 
-    urlParams.get('external_id'), 
-    urlParams.get('tilda_uid'), 
-    urlParams.get('id')
-  ].filter(Boolean)
-  if (urlUidCandidates.length) urlUid = urlUidCandidates[0]
-}
+  for (const source of sources) {
+    if (!source) continue;
+    const params = new URLSearchParams(source);
+    for (const key of paramKeys) {
+      if (params.has(key)) return params.get(key);
+    }
+  }
 
-// also support hash like #uid=...
-if (!urlUid && location.hash) {
-  const h = location.hash.replace(/^#/, '')
-  const hp = new URLSearchParams(h)
-  urlUid = hp.get('uid') || hp.get('id') || urlUid
-}
+  const pathRegex = /\/(\d+)(?:-|$)/;
+  const pathSources = [location.pathname, document.referrer ? new URL(document.referrer).pathname : ''];
+  for (const source of pathSources) {
+      const match = source.match(pathRegex);
+      if (match) return match[1];
+  }
 
-// also support UID embedded in pathname (e.g. /tproduct/782957961992-novie-freski-altamira)
-if (!urlUid && location.pathname) {
-  const m = location.pathname.match(/\/(\d+)(?:-|$)/)
-  if (m) urlUid = m[1]
+  if (document.referrer) {
+    const longDigits = (document.referrer.match(/\d{6,}/g) || [])[0];
+    if (longDigits) return longDigits;
+  }
+
+  return null;
 }
 
 // if still no uid, try to extract it from document.referrer (useful when coming from Tilda)
@@ -142,6 +81,8 @@ if (!urlUid && document.referrer) {
     // ignore invalid referrer
   }
 }
+
+urlUid = findUid();
 
 console.log('FINAL PID/UID:', urlUid)
 
@@ -184,6 +125,12 @@ function loadPaintingImage(id){
      }
      const src = candidates[i++]
      artImage.onerror = tryNext
+     artImage.onload = () => {
+       // Use the found image for the thumbnail as well
+       selectedThumb.src = src
+       selectedThumb.style.display = 'block'
+       console.log('Painting image loaded:', src)
+     }
      console.log('Trying:', src)
      artImage.src = src
    }
@@ -246,16 +193,6 @@ fetch('paintings.csv')
     paintingDescription.textContent = found.desc
 
     loadPaintingImage(found.id)
-    
-    // Find and set thumbnail image
-    findExistingThumb(found.id, (thumbUrl) => {
-      if (thumbUrl) {
-        selectedThumb.src = thumbUrl
-        selectedThumb.style.display = 'block'
-      } else {
-        selectedThumb.style.display = 'none'
-      }
-    })
     
     // Hide the painting picker since we're showing only one painting
     const paintingPicker = document.querySelector('.painting-picker')
