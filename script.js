@@ -177,7 +177,12 @@ fetch('paintings.csv')
     })
 
     if (!found){
-      paintingDescription.innerHTML = 'Картина не найдена в CSV'
+      paintingDescription.innerHTML = 'Картина не найдена в CSV по указанному PID'
+      // Hide the painting picker if no painting is found
+      const paintingPicker = document.querySelector('.painting-picker')
+      if (paintingPicker) {
+        paintingPicker.style.display = 'none'
+      }
       return
     }
 
@@ -185,6 +190,12 @@ fetch('paintings.csv')
     paintingDescription.textContent = found.desc
 
     loadPaintingImage(found.id)
+    
+    // Hide the painting picker since we're showing only one painting
+    const paintingPicker = document.querySelector('.painting-picker')
+    if (paintingPicker) {
+      paintingPicker.style.display = 'none'
+    }
   })
  .catch(err=>{
     console.error(err)
