@@ -2,6 +2,23 @@
  * ELEMENTS
  **********************/
 const artImage = document.getElementById("artImage")
+
+// Array to store image load callbacks
+const imageLoadCallbacks = [];
+
+// Override the onload to support multiple callbacks
+const originalOnload = artImage.onload || function() {};
+artImage.onload = function() {
+  originalOnload.call(this);
+  // Execute all registered callbacks
+  imageLoadCallbacks.forEach(callback => {
+    try {
+      callback.call(this);
+    } catch (e) {
+      console.error('Error in image load callback:', e);
+    }
+ });
+}
 const artFrame = document.getElementById("artFrame")
 const selectedThumb = document.getElementById('selectedThumb')
 const selectedTitle = document.getElementById('selectedTitle')
@@ -38,26 +55,6 @@ function findExistingThumb(id, cb){
       suffixes.forEach(suf => {
         exts.forEach(ext => {
           candidates.push(`${f}/${p}${suf}.${ext}`)
-        })
-      })
-    })
-  })
-  let idx = 0
-  const max = candidates.length
-  function tryNext(){
-    if (idx >= max) return cb(null)
-    const url = candidates[idx++]
-    const img = new Image()
-    img.onload = () => cb(url)
-    img.onerror = () => {
-      console.debug('Thumbnail not found:', url)
-      tryNext()
-    }
-    console.debug('Trying thumbnail URL:', url)
-    img.src = url
-  }
-  tryNext()
-}
         })
       })
     })
@@ -177,6 +174,7 @@ function loadPaintingImage(id){
    })
 
    let i = 0
+   
    function tryNext(){
      if (i >= candidates.length){
        paintingDescription.innerHTML = 'Изображение не найдено'
@@ -187,6 +185,7 @@ function loadPaintingImage(id){
      console.log('Trying:', src)
      artImage.src = src
    }
+   
    tryNext()
 }
 
@@ -245,15 +244,30 @@ fetch('paintings.csv')
     selectedTitle.textContent = found.title
     paintingDescription.textContent = found.desc
 
+    // Load the main painting image first
     loadPaintingImage(found.id)
-
+    
     // Find and set thumbnail image
     findExistingThumb(found.id, (thumbUrl) => {
       if (thumbUrl) {
         selectedThumb.src = thumbUrl
         selectedThumb.style.display = 'block'
       } else {
-        selectedThumb.style.display = 'none'
+        // If no specific thumbnail is found, use the same image as the main painting
+        // but make sure it's displayed as a thumbnail
+        // Wait for the main image to load before setting it as thumbnail
+        if (artImage.complete) {
+          // Image already loaded
+          selectedThumb.src = artImage.src
+          selectedThumb.style.display = 'block'
+        } else {
+          // Register a callback to set the thumbnail after the main image loads
+          imageLoadCallbacks.push(function() {
+            // Set the thumbnail after the main image loads
+            selectedThumb.src = artImage.src
+            selectedThumb.style.display = 'block'
+          })
+        }
       }
     })
     
