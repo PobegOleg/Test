@@ -20,8 +20,19 @@ body {
   margin-top: 15px;
 }
 
-.painting-picker {
+#paintingInfo {
   margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+#paintingInfo .selected-thumb {
+  margin-top: 8px;
+  width: 100px;
+ height: 100px;
+ object-fit: cover;
+  border: 1px solid #ddd;
 }
 .dropdown-toggle {
   display: flex;
