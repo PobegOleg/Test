@@ -1,7 +1,9 @@
+/*************************************************
+ * BASIC ELEMENTS
+ *************************************************/
 const artImage = document.getElementById("artImage")
 const artFrame = document.getElementById("artFrame")
 
-// new UI elements for custom dropdown
 const paintingToggle = document.getElementById('paintingToggle')
 const paintingList = document.getElementById('paintingList')
 const selectedThumb = document.getElementById('selectedThumb')
@@ -13,27 +15,238 @@ const frameWidth = document.getElementById("frameWidth")
 const frameColor = document.getElementById("frameColor")
 const stretcherInput = document.getElementById("stretcher")
 
-// load interior image from images/interior/ folder
 const interiorImg = document.querySelector('.interior')
 if (interiorImg) interiorImg.src = 'images/interior/interior.png'
 
-// helper: sanitize CSV cell
-function cell(v){ return v ? v.replace(/^\s+|\s+$/g, '').replace(/^"|"$/g, '') : '' }
+/*************************************************
+ * HELPERS
+ *************************************************/
+function cell(v){
+  return v ? v.replace(/^\s+|\s+$/g, '').replace(/^"|"$/g, '') : ''
+}
 
-// No client-side JSON listing; rely solely on CSV and filename candidate generation
+function isImageUrl(url){
+  return typeof url === 'string' && /\.(jpg|jpeg|png|webp)$/i.test(url)
+}
 
-// global resource error logger for images (helps detect external URLs coming from CSV)
+function findHeaderIndex(headers, patterns){
+  const lower = headers.map(h => h.toLowerCase())
+  for (const p of patterns){
+    const idx = lower.findIndex(h => h.includes(p))
+    if (idx !== -1) return idx
+  }
+  return -1
+}
+
+/*************************************************
+ * IMAGE ERROR LOGGER
+ *************************************************/
 window.addEventListener('error', function(e){
-  const t = e.target || e.srcElement
+  const t = e.target
   if (t && t.tagName === 'IMG') {
-    console.warn('Image load error captured:', t.src)
+    console.warn('Image load error:', t.src)
   }
 }, true)
 
-// try to find best-matching header index
-function findHeaderIndex(headers, patterns){
-  const lower = headers.map(h=>h.toLowerCase())
-  for (const p of patterns){
+/*************************************************
+ * THUMBNAIL SEARCH
+ *************************************************/
+function findExistingThumb(id, cb){
+  const folders = ['images/paintings','images/Paintings']
+  const exts = ['jpg','jpeg','png','webp']
+  const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
+  const suffixes = ['','_thumb','-thumb','_main','_large']
+
+  const candidates = []
+  folders.forEach(f=>{
+    pads.forEach(p=>{
+      suffixes.forEach(s=>{
+        exts.forEach(e=>{
+          candidates.push(`${f}/${p}${s}.${e}`)
+        })
+      })
+    })
+  })
+
+  let i = 0
+  function next(){
+    if (i >= candidates.length) return cb(null)
+    const url = candidates[i++]
+    const img = new Image()
+    img.onload = ()=> cb(url)
+    img.onerror = next
+    img.src = url
+  }
+  next()
+}
+
+/*************************************************
+ * SELECT PAINTING
+ *************************************************/
+function selectPainting(p){
+  const folders = ['images/paintings','images/Paintings']
+  const exts = ['jpg','jpeg','png','webp']
+  const pads = [p.id, p.id.padStart(2,'0'), p.id.padStart(3,'0')]
+
+  const candidates = []
+  folders.forEach(f=>{
+    pads.forEach(pa=>{
+      exts.forEach(e=>{
+        candidates.push(`${f}/${pa}.${e}`)
+        candidates.push(`${f}/${pa}_large.${e}`)
+        candidates.push(`${f}/${pa}_main.${e}`)
+      })
+    })
+  })
+
+  let i = 0
+  function tryNext(){
+    if (i >= candidates.length) {
+      artImage.src = ''
+      return
+    }
+    const src = candidates[i++]
+    artImage.onerror = tryNext
+    console.log('Trying image:', src)
+    artImage.src = src
+  }
+  tryNext()
+
+  if (isImageUrl(p.thumb)) selectedThumb.src = p.thumb
+  selectedTitle.textContent = p.title || ''
+  paintingDescription.textContent = p.description || ''
+  paintingList.classList.add('hidden')
+}
+
+/*************************************************
+ * UID DETECTION (PID HAS PRIORITY)
+ *************************************************/
+const params = new URLSearchParams(location.search)
+let urlUid = params.get('pid') || params.get('uid')
+
+if (!urlUid && location.hash){
+  const hp = new URLSearchParams(location.hash.replace('#',''))
+  urlUid = hp.get('pid') || hp.get('uid')
+}
+
+if (!urlUid && location.pathname){
+  const m = location.pathname.match(/\/(\d+)(?:-|$)/)
+  if (m) urlUid = m[1]
+}
+
+console.log('FINAL PID:', urlUid)
+
+/*************************************************
+ * LOAD CSV
+ *************************************************/
+fetch('paintings.csv')
+  .then(r => r.text())
+  .then(txt => {
+
+    const delim = txt.includes(';') && !txt.includes(',') ? ';' : ','
+    const lines = txt.split(/\r?\n/).filter(Boolean)
+    if (lines.length < 2) return
+
+    const headers = lines[0].split(delim).map(cell)
+    const rows = lines.slice(1)
+
+    const skuIdx  = findHeaderIndex(headers, ['sku','code','article','арт'])
+    const uidIdx  = findHeaderIndex(headers, ['uid','tilda'])
+    const titleIdx= findHeaderIndex(headers, ['title','name','название'])
+    const descIdx = findHeaderIndex(headers, ['description','описание'])
+
+    const items = rows.map((ln,i)=>{
+      const c = ln.split(delim).map(cell)
+      const skuRaw = skuIdx !== -1 ? c[skuIdx] : ''
+      const digits = (skuRaw.match(/\d+/g)||[]).join('')
+      const id = digits || (i+1).toString()
+
+      return {
+        id,
+        title: titleIdx!==-1 ? c[titleIdx] : `Картина ${id}`,
+        description: descIdx!==-1 ? c[descIdx] : '',
+        uidRaw: uidIdx!==-1 ? c[uidIdx] : ''
+      }
+    })
+
+    if (!urlUid){
+      paintingDescription.innerHTML = 'Нет PID в ссылке'
+      return
+    }
+
+    const match = items.find(it => it.uidRaw === urlUid)
+    if (!match){
+      paintingDescription.innerHTML = 'Картина не найдена'
+      return
+    }
+
+    const picker = document.querySelector('.painting-picker')
+    if (picker) picker.style.display = 'none'
+
+    findExistingThumb(match.id, (thumb)=>{
+      match.thumb = thumb
+      selectPainting(match)
+    })
+  })
+
+/*************************************************
+ * UI CONTROLS
+ *************************************************/
+const BASE_WIDTH = 200
+
+function update(){
+  const scale = Number(scaleInput.value)/100
+  artFrame.style.width = BASE_WIDTH * scale + 'px'
+  artFrame.style.borderWidth = frameWidth.value + 'px'
+  artFrame.style.borderColor = frameColor.value
+  if (stretcherInput)
+    artFrame.style.setProperty('--stretcher', stretcherInput.value+'px')
+}
+
+scaleInput.addEventListener('input', update)
+frameWidth.addEventListener('input', update)
+frameColor.addEventListener('input', update)
+if (stretcherInput) stretcherInput.addEventListener('input', update)
+
+update()
+
+/*************************************************
+ * DRAG & TOUCH
+ *************************************************/
+let isDragging=false,startX=0,startY=0,startLeft=0,startTop=0
+
+artFrame.addEventListener('mousedown',e=>{
+  isDragging=true
+  startX=e.clientX; startY=e.clientY
+  startLeft=artFrame.offsetLeft
+  startTop=artFrame.offsetTop
+})
+
+document.addEventListener('mousemove',e=>{
+  if(!isDragging)return
+  artFrame.style.left=startLeft+(e.clientX-startX)+'px'
+  artFrame.style.top=startTop+(e.clientY-startY)+'px'
+})
+
+document.addEventListener('mouseup',()=>isDragging=false)
+
+artFrame.addEventListener('touchstart',e=>{
+  const t=e.touches[0]
+  isDragging=true
+  startX=t.clientX; startY=t.clientY
+  startLeft=artFrame.offsetLeft
+  startTop=artFrame.offsetTop
+})
+
+document.addEventListener('touchmove',e=>{
+  if(!isDragging)return
+  const t=e.touches[0]
+  artFrame.style.left=startLeft+(t.clientX-startX)+'px'
+  artFrame.style.top=startTop+(t.clientY-startY)+'px'
+  e.preventDefault()
+},{passive:false})
+
+document.addEventListener('touchend',()=>isDragging=false)
     const idx = lower.findIndex(h => h.includes(p))
     if (idx !== -1) return idx
   }
