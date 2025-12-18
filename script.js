@@ -58,26 +58,6 @@ function findExistingThumb(id, cb){
   }
   tryNext()
 }
-        })
-      })
-    })
-  })
-  let idx = 0
-  const max = candidates.length
-  function tryNext(){
-    if (idx >= max) return cb(null)
-    const url = candidates[idx++]
-    const img = new Image()
-    img.onload = () => cb(url)
-    img.onerror = () => {
-      console.debug('Thumbnail not found:', url)
-      tryNext()
-    }
-    console.debug('Trying thumbnail URL:', url)
-    img.src = url
-  }
-  tryNext()
-}
 
 /**********************
  * UID DETECTION (PID HAS PRIORITY)
@@ -177,6 +157,10 @@ function loadPaintingImage(id){
    })
 
    let i = 0
+   
+   // Store the original onload handler to avoid overwriting it
+   const originalOnLoad = artImage.onload;
+   
    function tryNext(){
      if (i >= candidates.length){
        paintingDescription.innerHTML = 'Изображение не найдено'
@@ -187,6 +171,18 @@ function loadPaintingImage(id){
      console.log('Trying:', src)
      artImage.src = src
    }
+   
+   // Set up a new onload handler that calls the original handler and then sets the thumbnail
+   artImage.onload = function() {
+     // Call the original onload if it exists
+     if (originalOnLoad) {
+       originalOnLoad.call(this);
+     }
+     
+     // Additional logic for when the main image loads
+     // This will be called after the image is successfully loaded
+   }
+   
    tryNext()
 }
 
@@ -245,17 +241,37 @@ fetch('paintings.csv')
     selectedTitle.textContent = found.title
     paintingDescription.textContent = found.desc
 
-    loadPaintingImage(found.id)
-    
     // Find and set thumbnail image
     findExistingThumb(found.id, (thumbUrl) => {
       if (thumbUrl) {
         selectedThumb.src = thumbUrl
         selectedThumb.style.display = 'block'
       } else {
-        selectedThumb.style.display = 'none'
+        // If no specific thumbnail is found, use the same image as the main painting
+        // but make sure it's displayed as a thumbnail
+        // Wait for the main image to load before setting it as thumbnail
+        if (artImage.complete) {
+          // Image already loaded
+          selectedThumb.src = artImage.src
+          selectedThumb.style.display = 'block'
+        } else {
+          // Wait for the main image to load
+          const originalOnLoad = artImage.onload;
+          artImage.onload = function() {
+            // Call the original onload handler
+            if (originalOnLoad) {
+              originalOnLoad.call(this);
+            }
+            // Set the thumbnail after the main image loads
+            selectedThumb.src = artImage.src
+            selectedThumb.style.display = 'block'
+          }
+        }
       }
     })
+    
+    // Load the main painting image after setting up the thumbnail logic
+    loadPaintingImage(found.id)
     
     // Hide the painting picker since we're showing only one painting
     const paintingPicker = document.querySelector('.painting-picker')
