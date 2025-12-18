@@ -24,6 +24,62 @@ function isImage(url){
 }
 
 /**********************
+ * THUMBNAIL SEARCH
+ **********************/
+function findExistingThumb(id, cb){
+  // We rely on CSV-derived id and try multiple filename variants (pads and suffixes).
+  const folders = ['images/paintings','images/Paintings']
+  const exts = ['jpg','jpeg','png','webp']
+  const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
+  const candidates = []
+  const suffixes = ['','_thumb','-thumb','_main','_large','_re1','_old','_new']
+  folders.forEach(f => {
+    pads.forEach(p => {
+      suffixes.forEach(suf => {
+        exts.forEach(ext => {
+          candidates.push(`${f}/${p}${suf}.${ext}`)
+        })
+      })
+    })
+  })
+  let idx = 0
+  const max = candidates.length
+  function tryNext(){
+    if (idx >= max) return cb(null)
+    const url = candidates[idx++]
+    const img = new Image()
+    img.onload = () => cb(url)
+    img.onerror = () => {
+      console.debug('Thumbnail not found:', url)
+      tryNext()
+    }
+    console.debug('Trying thumbnail URL:', url)
+    img.src = url
+  }
+  tryNext()
+}
+        })
+      })
+    })
+  })
+  let idx = 0
+  const max = candidates.length
+  function tryNext(){
+    if (idx >= max) return cb(null)
+    const url = candidates[idx++]
+    const img = new Image()
+    img.onload = () => cb(url)
+    img.onerror = () => {
+      console.debug('Thumbnail not found:', url)
+      tryNext()
+    }
+    console.debug('Trying thumbnail URL:', url)
+    img.src = url
+  }
+  tryNext()
+}
+
+/**********************
  * UID DETECTION (PID HAS PRIORITY)
  **********************/
 const params = new URLSearchParams(location.search)
@@ -177,7 +233,12 @@ fetch('paintings.csv')
     })
 
     if (!found){
-      paintingDescription.innerHTML = 'Картина не найдена в CSV'
+      paintingDescription.innerHTML = 'Картина не найдена в CSV по указанному PID'
+      // Hide the painting picker if no painting is found
+      const paintingPicker = document.querySelector('.painting-picker')
+      if (paintingPicker) {
+        paintingPicker.style.display = 'none'
+      }
       return
     }
 
@@ -185,6 +246,22 @@ fetch('paintings.csv')
     paintingDescription.textContent = found.desc
 
     loadPaintingImage(found.id)
+    
+    // Find and set thumbnail image
+    findExistingThumb(found.id, (thumbUrl) => {
+      if (thumbUrl) {
+        selectedThumb.src = thumbUrl
+        selectedThumb.style.display = 'block'
+      } else {
+        selectedThumb.style.display = 'none'
+      }
+    })
+    
+    // Hide the painting picker since we're showing only one painting
+    const paintingPicker = document.querySelector('.painting-picker')
+    if (paintingPicker) {
+      paintingPicker.style.display = 'none'
+    }
   })
  .catch(err=>{
     console.error(err)
@@ -245,9 +322,6 @@ document.addEventListener('touchmove',e=>{
   artFrame.style.left=l+(t.clientX-sx)+'px'
   artFrame.style.top=t+(t.clientY-sy)+'px'
   e.preventDefault()
-},{passive:false})
-
-document.addEventListener('touchend',()=>isDragging=false)
 },{passive:false})
 
 document.addEventListener('touchend',()=>isDragging=false)
