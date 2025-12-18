@@ -2,23 +2,6 @@
  * ELEMENTS
  **********************/
 const artImage = document.getElementById("artImage")
-
-// Array to store image load callbacks
-const imageLoadCallbacks = [];
-
-// Override the onload to support multiple callbacks
-const originalOnload = artImage.onload || function() {};
-artImage.onload = function() {
-  originalOnload.call(this);
-  // Execute all registered callbacks
-  imageLoadCallbacks.forEach(callback => {
-    try {
-      callback.call(this);
-    } catch (e) {
-      console.error('Error in image load callback:', e);
-    }
- });
-}
 const artFrame = document.getElementById("artFrame")
 const selectedThumb = document.getElementById('selectedThumb')
 const selectedTitle = document.getElementById('selectedTitle')
@@ -38,42 +21,6 @@ function cell(v){
 
 function isImage(url){
   return /\.(jpg|jpeg|png|webp)$/i.test(url)
-}
-
-/**********************
- * THUMBNAIL SEARCH
- **********************/
-function findExistingThumb(id, cb){
-  // We rely on CSV-derived id and try multiple filename variants (pads and suffixes).
-  const folders = ['images/paintings','images/Paintings']
-  const exts = ['jpg','jpeg','png','webp']
-  const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
-  const candidates = []
-  const suffixes = ['','_thumb','-thumb','_main','_large','_re1','_old','_new']
-  folders.forEach(f => {
-    pads.forEach(p => {
-      suffixes.forEach(suf => {
-        exts.forEach(ext => {
-          candidates.push(`${f}/${p}${suf}.${ext}`)
-        })
-      })
-    })
-  })
-  let idx = 0
-  const max = candidates.length
-  function tryNext(){
-    if (idx >= max) return cb(null)
-    const url = candidates[idx++]
-    const img = new Image()
-    img.onload = () => cb(url)
-    img.onerror = () => {
-      console.debug('Thumbnail not found:', url)
-      tryNext()
-    }
-    console.debug('Trying thumbnail URL:', url)
-    img.src = url
-  }
-  tryNext()
 }
 
 /**********************
@@ -174,7 +121,6 @@ function loadPaintingImage(id){
    })
 
    let i = 0
-   
    function tryNext(){
      if (i >= candidates.length){
        paintingDescription.innerHTML = 'Изображение не найдено'
@@ -185,7 +131,6 @@ function loadPaintingImage(id){
      console.log('Trying:', src)
      artImage.src = src
    }
-   
    tryNext()
 }
 
@@ -232,50 +177,14 @@ fetch('paintings.csv')
     })
 
     if (!found){
-      paintingDescription.innerHTML = 'Картина не найдена в CSV по указанному PID'
-      // Hide the painting picker if no painting is found
-      const paintingPicker = document.querySelector('.painting-picker')
-      if (paintingPicker) {
-        paintingPicker.style.display = 'none'
-      }
+      paintingDescription.innerHTML = 'Картина не найдена в CSV'
       return
     }
 
     selectedTitle.textContent = found.title
     paintingDescription.textContent = found.desc
 
-    // Load the main painting image first
     loadPaintingImage(found.id)
-    
-    // Find and set thumbnail image
-    findExistingThumb(found.id, (thumbUrl) => {
-      if (thumbUrl) {
-        selectedThumb.src = thumbUrl
-        selectedThumb.style.display = 'block'
-      } else {
-        // If no specific thumbnail is found, use the same image as the main painting
-        // but make sure it's displayed as a thumbnail
-        // Wait for the main image to load before setting it as thumbnail
-        if (artImage.complete) {
-          // Image already loaded
-          selectedThumb.src = artImage.src
-          selectedThumb.style.display = 'block'
-        } else {
-          // Register a callback to set the thumbnail after the main image loads
-          imageLoadCallbacks.push(function() {
-            // Set the thumbnail after the main image loads
-            selectedThumb.src = artImage.src
-            selectedThumb.style.display = 'block'
-          })
-        }
-      }
-    })
-    
-    // Hide the painting picker since we're showing only one painting
-    const paintingPicker = document.querySelector('.painting-picker')
-    if (paintingPicker) {
-      paintingPicker.style.display = 'none'
-    }
   })
  .catch(err=>{
     console.error(err)
@@ -336,6 +245,9 @@ document.addEventListener('touchmove',e=>{
   artFrame.style.left=l+(t.clientX-sx)+'px'
   artFrame.style.top=t+(t.clientY-sy)+'px'
   e.preventDefault()
+},{passive:false})
+
+document.addEventListener('touchend',()=>isDragging=false)
 },{passive:false})
 
 document.addEventListener('touchend',()=>isDragging=false)
