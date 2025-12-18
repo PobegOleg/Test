@@ -1,11 +1,8 @@
-/*************************************************
- * BASIC ELEMENTS
- *************************************************/
+/**********************
+ * ELEMENTS
+ **********************/
 const artImage = document.getElementById("artImage")
 const artFrame = document.getElementById("artFrame")
-
-const paintingToggle = document.getElementById('paintingToggle')
-const paintingList = document.getElementById('paintingList')
 const selectedThumb = document.getElementById('selectedThumb')
 const selectedTitle = document.getElementById('selectedTitle')
 const paintingDescription = document.getElementById('paintingDescription')
@@ -13,27 +10,151 @@ const paintingDescription = document.getElementById('paintingDescription')
 const scaleInput = document.getElementById("scale")
 const frameWidth = document.getElementById("frameWidth")
 const frameColor = document.getElementById("frameColor")
-const stretcherInput = document.getElementById("stretcher")
 
-const interiorImg = document.querySelector('.interior')
-if (interiorImg) interiorImg.src = 'images/interior/interior.png'
-
-/*************************************************
+/**********************
  * HELPERS
- *************************************************/
+ **********************/
 function cell(v){
-  return v ? v.replace(/^\s+|\s+$/g, '').replace(/^"|"$/g, '') : ''
+  return v ? v.replace(/^\s+|\s+$/g,'').replace(/^"|"$/g,'') : ''
 }
 
-function isImageUrl(url){
-  return typeof url === 'string' && /\.(jpg|jpeg|png|webp)$/i.test(url)
+function isImage(url){
+  return /\.(jpg|jpeg|png|webp)$/i.test(url)
 }
 
-function findHeaderIndex(headers, patterns){
-  const lower = headers.map(h => h.toLowerCase())
-  for (const p of patterns){
-    const idx = lower.findIndex(h => h.includes(p))
-    if (idx !== -1) return idx
+/**********************
+ * GET PID (ONLY FROM URL)
+ **********************/
+const params = new URLSearchParams(location.search)
+const PID = params.get('pid')
+
+console.log('PID FROM URL:', PID)
+
+/**********************
+ * IMAGE SEARCH
+ **********************/
+function loadPaintingImage(id){
+  const folders = ['images/paintings','images/Paintings']
+  const exts = ['jpg','jpeg','png','webp']
+  const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
+
+  const candidates = []
+  folders.forEach(f=>{
+    pads.forEach(p=>{
+      exts.forEach(e=>{
+        candidates.push(`${f}/${p}.${e}`)
+        candidates.push(`${f}/${p}_large.${e}`)
+      })
+    })
+  })
+
+  let i = 0
+  function tryNext(){
+    if (i >= candidates.length){
+      paintingDescription.innerHTML = 'Изображение не найдено'
+      return
+    }
+    const src = candidates[i++]
+    artImage.onerror = tryNext
+    console.log('Trying:', src)
+    artImage.src = src
+  }
+  tryNext()
+}
+
+/**********************
+ * LOAD CSV
+ **********************/
+fetch('paintings.csv')
+  .then(r => r.text())
+  .then(txt => {
+
+    if (!PID){
+      paintingDescription.innerHTML = 'Нет pid в ссылке'
+      return
+    }
+
+    const delim = txt.includes(';') && !txt.includes(',') ? ';' : ','
+    const lines = txt.split(/\r?\n/).filter(Boolean)
+    if (lines.length < 2){
+      paintingDescription.innerHTML = 'CSV пуст'
+      return
+    }
+
+    const headers = lines[0].split(delim).map(cell)
+    const rows = lines.slice(1)
+
+    const uidIdx = headers.findIndex(h => h.toLowerCase().includes('uid'))
+    const titleIdx = headers.findIndex(h => h.toLowerCase().includes('название'))
+    const descIdx = headers.findIndex(h => h.toLowerCase().includes('описание'))
+    const skuIdx = headers.findIndex(h => h.toLowerCase().includes('арт'))
+
+    let found = null
+
+    rows.forEach((line, i) => {
+      if (found) return
+      const c = line.split(delim).map(cell)
+      if (c[uidIdx] === PID){
+        const digits = (c[skuIdx] || '').match(/\d+/g)
+        found = {
+          id: digits ? digits.join('') : (i+1).toString(),
+          title: c[titleIdx] || '',
+          desc: c[descIdx] || ''
+        }
+      }
+    })
+
+    if (!found){
+      paintingDescription.innerHTML = 'Картина не найдена в CSV'
+      return
+    }
+
+    selectedTitle.textContent = found.title
+    paintingDescription.textContent = found.desc
+
+    loadPaintingImage(found.id)
+  })
+  .catch(err=>{
+    console.error(err)
+    paintingDescription.innerHTML = 'Ошибка загрузки CSV'
+  })
+
+/**********************
+ * FRAME CONTROLS
+ **********************/
+const BASE_WIDTH = 200
+
+function update(){
+  const scale = Number(scaleInput.value) / 100
+  artFrame.style.width = BASE_WIDTH * scale + 'px'
+  artFrame.style.borderWidth = frameWidth.value + 'px'
+  artFrame.style.borderColor = frameColor.value
+}
+
+scaleInput.addEventListener('input', update)
+frameWidth.addEventListener('input', update)
+frameColor.addEventListener('input', update)
+update()
+
+/**********************
+ * DRAG
+ **********************/
+let drag=false,sx=0,sy=0,l=0,t=0
+
+artFrame.addEventListener('mousedown',e=>{
+  drag=true
+  sx=e.clientX; sy=e.clientY
+  l=artFrame.offsetLeft
+  t=artFrame.offsetTop
+})
+
+document.addEventListener('mousemove',e=>{
+  if(!drag)return
+  artFrame.style.left=l+(e.clientX-sx)+'px'
+  artFrame.style.top=t+(e.clientY-sy)+'px'
+})
+
+document.addEventListener('mouseup',()=>drag=false)
   }
   return -1
 }
