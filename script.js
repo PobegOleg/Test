@@ -104,7 +104,8 @@ function findHeaderIndex(headers, patterns){
 function loadPaintingImage(id){
    const folders = ['images/paintings','images/Paintings']
    const exts = ['jpg','jpeg','png','webp']
-   const pads = [id, id.padStart(2,'0'), id.padStart(3,'0')]
+   // Убираем дубликаты (например, если id '100', то варианты были бы одинаковые)
+   const pads = [...new Set([id, id.padStart(2,'0'), id.padStart(3,'0')])]
 
    const candidates = []
    folders.forEach(f=>{
@@ -117,24 +118,28 @@ function loadPaintingImage(id){
      })
    })
 
-   let i = 0
-   function tryNext(){
-     if (i >= candidates.length){
-       paintingDescription.innerHTML = 'Изображение не найдено'
-       return
-     }
-     const src = candidates[i++]
-     artImage.onerror = tryNext
-     artImage.onload = () => {
-       // Use the found image for the thumbnail as well
+   let found = false
+   let errorCount = 0
+
+   // Запускаем поиск параллельно, а не по очереди
+   candidates.forEach(src => {
+     const img = new Image()
+     img.onload = () => {
+       if (found) return
+       found = true
+       console.log('Painting image loaded:', src)
+       artImage.src = src
        selectedThumb.src = src
        selectedThumb.style.display = 'block'
-       console.log('Painting image loaded:', src)
      }
-     console.log('Trying:', src)
-     artImage.src = src
-   }
-   tryNext()
+     img.onerror = () => {
+       errorCount++
+       if (errorCount >= candidates.length && !found) {
+         paintingDescription.innerHTML = 'Изображение не найдено'
+       }
+     }
+     img.src = src
+   })
 }
 
 /**********************
