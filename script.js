@@ -15,10 +15,6 @@ const stretcherInput = document.getElementById("stretcher")
 /**********************
  * HELPERS
  **********************/
-function cell(v){
-  return v ? v.replace(/^\s+|\s+$/g,'').replace(/^"|"$/g,'') : ''
-}
-
 function isImage(url){
   return /\.(jpg|jpeg|png|webp)$/i.test(url)
 }
@@ -36,7 +32,7 @@ function findUid() {
     document.referrer ? new URL(document.referrer).hash.replace('#', '') : ''
   ];
 
-  const paramKeys = ['pid', 'uid', 'product_uid', 'external_id', 'tilda_uid', 'id'];
+  const paramKeys = ['sku', 'pid', 'uid', 'product_uid', 'external_id', 'tilda_uid', 'id'];
 
   for (const source of sources) {
     if (!source) continue;
@@ -61,55 +57,33 @@ function findUid() {
   return null;
 }
 
-// if still no uid, try to extract it from document.referrer (useful when coming from Tilda)
-if (!urlUid && document.referrer) {
-  try {
-    const ref = new URL(document.referrer)
-    const refParams = new URLSearchParams(ref.search)
-    urlUid = refParams.get('pid') || refParams.get('uid') || refParams.get('product_uid') || refParams.get('external_id') || refParams.get('tilda_uid') || refParams.get('id') || urlUid
-    if (!urlUid) {
-      const rm = ref.pathname.match(/\/(\d+)(?:-|$)/)
-      if (rm) urlUid = rm[1]
-    }
-    // fallback: any long digit sequence in referrer URL
-    if (!urlUid) {
-      const longDigits = (ref.href.match(/\d{6,}/g) || [])[0]
-      if (longDigits) urlUid = longDigits
-    }
-    if (urlUid) console.log('Detected urlUid from referrer:', urlUid, 'referrer:', document.referrer)
-  } catch (e) {
-    // ignore invalid referrer
-  }
-}
-
 urlUid = findUid();
 
 console.log('FINAL PID/UID:', urlUid)
 
 /**********************
- * FIND HEADER INDEX
- **********************/
-function findHeaderIndex(headers, patterns){
-  const lower = headers.map(h=>h.toLowerCase())
- for (const p of patterns){
-    const idx = lower.findIndex(h => h.includes(p))
-    if (idx !== -1) return idx
-  }
- return -1
-}
-
-/**********************
  * IMAGE SEARCH
  **********************/
-function loadPaintingImage(id){
+function loadPaintingImage(rawId){
+   if (!rawId) return
+
+   // Оставляем только цифры и убираем ведущие нули
+   const baseId = rawId.replace(/\D/g, '').replace(/^0+/, '')
+   if (!baseId) {
+     paintingDescription.innerHTML = 'Некорректный SKU (нет цифр)'
+     return
+   }
+
    const folders = ['images/paintings','images/Paintings']
    const exts = ['jpg','jpeg','png','webp']
-   // Убираем дубликаты (например, если id '100', то варианты были бы одинаковые)
-   const pads = [...new Set([id, id.padStart(2,'0'), id.padStart(3,'0')])]
+   
+   // Генерируем варианты: 5, 05, 005, 0005
+   const pads = [baseId, baseId.padStart(2,'0'), baseId.padStart(3,'0'), baseId.padStart(4,'0')]
+   const uniquePads = [...new Set(pads)]
 
    const candidates = []
    folders.forEach(f=>{
-     pads.forEach(p=>{
+     uniquePads.forEach(p=>{
        exts.forEach(e=>{
          candidates.push(`${f}/${p}.${e}`)
          candidates.push(`${f}/${p}_large.${e}`)
@@ -143,72 +117,15 @@ function loadPaintingImage(id){
 }
 
 /**********************
- * LOAD CSV
+ * INIT
  **********************/
-fetch('paintings.csv')
-  .then(r => r.text())
-  .then(txt => {
-
-    if (!urlUid){
-      paintingDescription.innerHTML = 'Нет pid в ссылке'
-      return
-    }
-
-    const delim = txt.includes(';') && !txt.includes(',') ? ';' : ','
-    const lines = txt.split(/\r?\n/).filter(Boolean)
-    if (lines.length < 2){
-      paintingDescription.innerHTML = 'CSV пуст'
-      return
-    }
-
-    const headers = lines[0].split(delim).map(cell)
-    const rows = lines.slice(1)
-
-    const uidIdx = findHeaderIndex(headers, ['tilda uid', 'uid', 'tilda'])
-    const titleIdx = findHeaderIndex(headers, ['title', 'name', 'название'])
-    const descIdx = findHeaderIndex(headers, ['description', 'описание'])
-    const skuIdx = findHeaderIndex(headers, ['sku', 'code', 'article', 'арт'])
-
-    let found = null
-
-    rows.forEach((line, i) => {
-      if (found) return
-      const c = line.split(delim).map(cell)
-      if (c[uidIdx] === urlUid){
-        const digits = (c[skuIdx] || '').match(/\d+/g)
-        found = {
-          id: digits ? digits.join('') : (i+1).toString(),
-          title: c[titleIdx] || '',
-          desc: c[descIdx] || ''
-        }
-      }
-    })
-
-    if (!found){
-      paintingDescription.innerHTML = 'Картина не найдена в CSV по указанному PID'
-      // Hide the painting picker if no painting is found
-      const paintingPicker = document.querySelector('.painting-picker')
-      if (paintingPicker) {
-        paintingPicker.style.display = 'none'
-      }
-      return
-    }
-
-    selectedTitle.textContent = found.title
-    paintingDescription.textContent = found.desc
-
-    loadPaintingImage(found.id)
-    
-    // Hide the painting picker since we're showing only one painting
-    const paintingPicker = document.querySelector('.painting-picker')
-    if (paintingPicker) {
-      paintingPicker.style.display = 'none'
-    }
-  })
- .catch(err=>{
-    console.error(err)
-    paintingDescription.innerHTML = 'Ошибка загрузки CSV'
-  })
+if (urlUid) {
+  selectedTitle.textContent = `SKU: ${urlUid}`
+  paintingDescription.textContent = ''
+  loadPaintingImage(urlUid)
+} else {
+  paintingDescription.innerHTML = 'SKU не найден в ссылке'
+}
 
 /**********************
  * FRAME CONTROLS
