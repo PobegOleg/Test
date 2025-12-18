@@ -161,7 +161,7 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
   // read uid from URL if present (query or hash)
   const urlParams = new URLSearchParams(window.location.search)
   const urlUidCandidates = [
-    urlParams.get('uid'), urlParams.get('product_uid'), urlParams.get('external_id'), urlParams.get('tilda_uid'), urlParams.get('id')
+    urlParams.get('pid'),  urlParams.get('uid'), urlParams.get('product_uid'), urlParams.get('external_id'), urlParams.get('tilda_uid'), urlParams.get('id')
   ].filter(Boolean)
   let urlUid = null
   if (urlUidCandidates.length) urlUid = urlUidCandidates[0]
@@ -181,7 +181,7 @@ fetch('paintings.csv').then(r => r.text()).then(txt => {
     try {
       const ref = new URL(document.referrer)
       const refParams = new URLSearchParams(ref.search)
-      urlUid = refParams.get('uid') || refParams.get('product_uid') || refParams.get('external_id') || refParams.get('tilda_uid') || refParams.get('id') || urlUid
+      urlUid = refParams.get('pid') || refParams.get('uid') || refParams.get('product_uid') || refParams.get('external_id') || refParams.get('tilda_uid') || refParams.get('id') || urlUid
       if (!urlUid) {
         const rm = ref.pathname.match(/\/(\d+)(?:-|$)/)
         if (rm) urlUid = rm[1]
